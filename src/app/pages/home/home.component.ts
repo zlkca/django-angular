@@ -123,7 +123,7 @@ export class HomeComponent implements OnInit {
                 //if(s.split(' ')[0].indexOf('#')==-1){ //skip comment
                     var className = s.split(' ')[1];
                     var ms = this.getMembers(lines, i+1);
-                    var cs = this.getComponents(app, className);
+                    var cs = this.getComponents(app, className, ms);
                     cls.push({'name':className, 'members':ms, 'components':cs});
                 //}
             }
@@ -131,29 +131,44 @@ export class HomeComponent implements OnInit {
         return cls;
     }
 
-    getComponents(app, uClassName){
+    getContent(app, uClassName, members, cat, ext){
+        if(cat=='list'){ 
+            if(ext == '.ts'){
+                return this.createListComponents(app, uClassName);
+            }else if(ext == '.html'){
+                return this.createListHtml(uClassName);
+            }else{
+                return '';
+            }
+        }else if(cat=='detail'){
+            if(ext == '.ts'){
+                this.createDetailComponents(app, uClassName);
+            }else{
+                return '';
+            }
+        }else if(cat=='form'){
+            if(ext == '.ts'){
+                return this.createFormComponents(app, uClassName);
+            }else if(ext = '.html'){
+                return this.createFormHtml(uClassName, members);
+            }else{
+                return '';
+            }
+        }else{
+            return '';
+        }
+    }
+    getComponents(app, uClassName, members){
         let lClassName = uClassName.toLowerCase();
         let components = [];
-        let cats = ['list', 'detail'];
+        let cats = ['list', 'form'];
         for(let cat of cats){
             let componentName = lClassName + '-' + cat;
             let fileName = componentName + '.component';
             let exts = ['.html', '.scss', '.spec.ts', '.ts'];
             let files = [];
             for(let ext of exts){
-                let content ='';
-                if(cat=='list'){ 
-                    if(ext == '.ts'){
-                        content = this.createListComponents(app, uClassName);
-                    }else if(ext == '.html'){
-                        content = this.createListHtml(uClassName);
-                    }
-                }
-                if(cat=='detail'){
-                    if(ext == '.ts'){
-                        content = this.createDetailComponents(app, uClassName);
-                    }
-                }
+                let content = this.getContent(app, uClassName, members, cat, ext);
                 files.push({'name':fileName + ext, 'content':content, 'expanded':false});
             }
             components.push({'name':componentName, 'files':files })
@@ -209,6 +224,25 @@ export class HomeComponent implements OnInit {
         return s;
     }
 
+    createFormHtml(className, members){
+        var lClassName = className.toLowerCase();
+        var s = '<div class="container">\n'+
+            '    <form class="' + lClassName + '-form">\n';
+
+        for(let m of members){
+            s += '        <div class="row">\n'+
+                '            <div>'+ m.name +'</div>\n'+
+                '            <input name="' + m.name + '" [(ngModel)]="'+ lClassName +'.'+ m.name +'"/>\n'+
+                '        </div>\n';
+        }
+        
+        s += '        <button (click)="save()">Save</button>\n'+    
+        '    </form>\n'+
+        '</div>';
+
+        return s;
+    }
+
     createListComponents(app, uClassName){
         var s = "import { Component, OnInit } from '@angular/core';\n";
         var uServiceName = app.charAt(0).toUpperCase() + app.slice(1) + "Service";
@@ -230,8 +264,8 @@ export class HomeComponent implements OnInit {
         "    fields:string[] = [];\n"+
         "    constructor(private " + serviceVar + ":" + uServiceName + "){}\n\n"+
         "    ngOnInit() {\n"+
-        "        let " + lClassName + " = new "+ uClassName +"()\n";
-        "        this.fields = Object.getOwnPropertyNames("+ lClassName + ");"
+        "        let " + lClassName + " = new "+ uClassName +"()\n"+
+        "        this.fields = Object.getOwnPropertyNames("+ lClassName + ");\n"+
         "        this." + serviceVar + "." + getFunc + "().subscribe(\n"+
         "            (r:"+ uClassName + "[]) => {\n"+
         "                self." + lClassName + "List = r;\n"+
@@ -242,6 +276,57 @@ export class HomeComponent implements OnInit {
         "        });\n"+
         "    }\n\n"+
         "    toDetail(r){}\n\n"+
+        "}\n\n";
+
+        return s;
+    }
+
+    createFormComponents(app, uClassName){
+        var s = "import { Component, OnInit } from '@angular/core';\n"+
+            "import { Router, ActivatedRoute } from '@angular/router';\n";
+
+        var uServiceName = app.charAt(0).toUpperCase() + app.slice(1) + "Service";
+        var lClassName = uClassName.toLowerCase();
+        var serviceVar = lClassName + "Serv";
+        var getFunc = "get" + uClassName;
+        var saveFunc = "save" + uClassName;
+
+        s += "import { " + uServiceName + " } from '../" + app + ".service';\n";
+        s += "import { " + uClassName + " } from '../" + app + "';\n\n";
+
+        s += "@Component({\n"+
+        "    providers:[" + uServiceName + "]\n"+
+        "    selector: 'app-" + lClassName + "-form',\n"+
+        "    templateUrl: './" + lClassName + "-form.component.html'],\n"+
+        "    styleUrls: './" + lClassName + "-form.component.scss']\n"+
+        "})\n"+
+        "export class " + uClassName + "FormComponent implements OnInit {\n"+
+        "    " + lClassName + ":" + uClassName + ";\n\n"+
+        "    constructor(private " + serviceVar + ":" + uServiceName + ", private route: ActivatedRoute){}\n\n"+
+        "    ngOnInit() {\n"+
+        "        let self = this;\n"+
+        "        self.route.params.subscribe((params:any)=>{\n"+
+        "            this." + serviceVar + "." + getFunc + "(params.id).subscribe(\n"+
+        "                (r:"+ uClassName + ") => {\n"+
+        "                    self." + lClassName + " = r;\n"+
+        "                },\n"+
+        "                (err:any) => {\n"+
+        "                    self." + lClassName + " = null;\n"+
+        "                });\n"+
+        "            });\n"+
+        "        });\n"+
+        "    }\n\n"+
+        "    save() {\n"+
+        "        let self = this;\n"+
+        "        self." + serviceVar + "." + saveFunc + "(self."+ lClassName +").subscribe(\n"+
+        "            (r:"+ uClassName + ") => {\n"+
+        "                self." + lClassName + " = r;\n"+
+        "            },\n"+
+        "            (err:any) => {\n"+
+        "                self." + lClassName + " = null;\n"+
+        "            });\n"+
+        "        });\n"+
+        "    }\n"+
         "}\n\n";
 
         return s;
@@ -270,7 +355,7 @@ export class HomeComponent implements OnInit {
         "    constructor(private " + serviceVar + ":" + uServiceName + ", private route: ActivatedRoute){}\n\n"+
         "    ngOnInit() {\n"+
         "        let self = this;\n"+
-        "        self.route.params.subscribe((params:any)=>{"+
+        "        self.route.params.subscribe((params:any)=>{\n"+
         "            this." + serviceVar + "." + getFunc + "(params.id).subscribe(\n"+
         "                (r:"+ uClassName + ") => {\n"+
         "                    self." + lClassName + " = r;\n"+
