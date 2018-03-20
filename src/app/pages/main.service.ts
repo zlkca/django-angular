@@ -11,10 +11,10 @@ export class MainService {
     
     constructor(private http:HttpClient) { }
     
-    generateModels(cls:any):Observable<any>{
+    generateModels(app:string, cls:any):Observable<any>{
         const url = this.API_URL + 'models';
         let headers = new HttpHeaders().set('Content-Type', "application/json");
-        return this.http.post(url, {'classes':cls}, { 'headers': headers })
+        return this.http.post(url, {'app':app, 'classes':cls}, { 'headers': headers })
           .map((res:any)=>{
               return res.data;
           })

@@ -27,6 +27,19 @@ export class HomeComponent implements OnInit {
     toggleTextarea(item){
         item.expanded = !item.expanded;
     }
+
+    generateFiles(){
+        this.mainServ.generateModels(this.apps[0].name, this.apps[0].classes).subscribe(
+            (ps:any) => {
+                console.log(ps.data);
+                //self.model = ps.data;//self.toProductGrid(data);
+            },
+            (err:any) => {
+                //self.model = 'Error';
+            }
+        );
+    }
+
     convert(){
         for(let app of this.apps){
             app.model.file = app.name + '/' + app.name + '.ts';
@@ -37,15 +50,6 @@ export class HomeComponent implements OnInit {
             app.model.content = this.createModels(app.classes);
             app.service.content = this.createServices('commerce', app.classes);    
         }
-                // this.mainServ.generateModels(cls).subscribe(
-        //     (ps:any) => {
-        //         console.log(ps.data);
-        //         self.model = ps.data;//self.toProductGrid(data);
-        //     },
-        //     (err:any) => {
-        //         self.model = 'Error';
-        //     }
-        // );
 
         // this.mainServ.generateServices('commerce', cls).subscribe(
         //     (ps:any) => {
@@ -121,10 +125,10 @@ export class HomeComponent implements OnInit {
                 var s = m[0].split('(')[0];
 
                 //if(s.split(' ')[0].indexOf('#')==-1){ //skip comment
-                    var className = s.split(' ')[1];
-                    var ms = this.getMembers(lines, i+1);
-                    var cs = this.getComponents(app, className, ms);
-                    cls.push({'name':className, 'members':ms, 'components':cs});
+                var className = s.split(' ')[1];
+                var ms = this.getMembers(lines, i+1);
+                var cs = this.getComponents(app, className, ms);
+                cls.push({'name':className, 'members':ms, 'components':cs});
                 //}
             }
         }
@@ -158,6 +162,7 @@ export class HomeComponent implements OnInit {
             return '';
         }
     }
+    
     getComponents(app, uClassName, members){
         let lClassName = uClassName.toLowerCase();
         let components = [];
@@ -175,12 +180,6 @@ export class HomeComponent implements OnInit {
         }
         return components;
     }
-    
-    // createComponents(cls){
-    //     for(var i=0; i<cls.length; i++){
-    //         getComponents
-    //     }
-    // }
 
     createModels(cls){
         // app --- django app
@@ -248,7 +247,7 @@ export class HomeComponent implements OnInit {
         var uServiceName = app.charAt(0).toUpperCase() + app.slice(1) + "Service";
         var lClassName = uClassName.toLowerCase();
         var serviceVar = lClassName + "Serv";
-        var getFunc = "get" + uClassName;
+        var getListFunc = "get" + uClassName + "List";
 
         s += "import { " + uServiceName + " } from '../" + app + ".service';\n";
         s += "import { " + uClassName + " } from '../" + app + "';\n\n";
@@ -266,7 +265,7 @@ export class HomeComponent implements OnInit {
         "    ngOnInit() {\n"+
         "        let " + lClassName + " = new "+ uClassName +"()\n"+
         "        this.fields = Object.getOwnPropertyNames("+ lClassName + ");\n"+
-        "        this." + serviceVar + "." + getFunc + "().subscribe(\n"+
+        "        this." + serviceVar + "." + getListFunc + "().subscribe(\n"+
         "            (r:"+ uClassName + "[]) => {\n"+
         "                self." + lClassName + "List = r;\n"+
         "            },\n"+
@@ -397,8 +396,8 @@ export class HomeComponent implements OnInit {
             var lClassName = className.charAt(0).toLowerCase() + className.slice(1);
             var members = cls[i].members;
 
-            s += "    get" + className + "(query?:any):Obervable<" + className + "[]>{\n";
-            s += "        const url = this.API_URL + '" + lClassName + "';\n";
+            s += "    get" + className + "List(query?:str):Obervable<" + className + "[]>{\n";
+            s += "        const url = this.API_URL + '" + lClassName + "' + query;\n";
             s += "        let headers = new HttpHeaders().set('Content-Type', 'application/json');\n";
             s += "        return this.http.get(url, {'headers': headers}).map((res) => {\n";
             s += "            let a:"+ className +"[] = [];\n";
@@ -435,6 +434,7 @@ export class HomeComponent implements OnInit {
                 s += "          '" + members[j].name + "': d." + members[j].name + ",\n";
             }
 
+            s += "        }\n";
             s += "        return this.http.post(url, data, {'headers': headers}).map((res) => {\n";
             s += "            return new "+ className +"(res.data);\n";
             s += "        })\n";

@@ -2,11 +2,16 @@
   <div class="container">
 
     <div *ngFor="let app of apps">
-
+      <div class="row">
+        <div class="col-md-12">Input/Paste your app name in Django Format:</div>
+        <input name="app" [(ngModel)]="app.name" (ngModelChange)="convert($event)"/>
+      </div>
       <div class="row">
         <div class="col-md-12">Input/Paste your model classes in Django Format:</div>
         <textarea id="source" name="source" [(ngModel)]="app.source" (ngModelChange)="convert($event)"></textarea>
       </div>
+
+      <div class="row">Files for angular 5:</div>
 
       <div class="row">
         <div class="col-md-12 file" (click)=toggleTextarea(app.model)><a>{{app.model.file}}</a></div>
@@ -31,6 +36,6 @@
   </div>
 
   <div style="width:100%;height:40px;float:left;">
-    <button (click)="convert()">Submit</button>
+    <button (click)="generateFiles()">Submit</button>
   </div>
 </form>

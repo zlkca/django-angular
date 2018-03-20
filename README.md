@@ -2,9 +2,20 @@
 
 A powerful tool to generate model classes of django format to angular5 components !
 
-## Development server
+## Install and run
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. 
+Git pull the project and cd to djanto-angular folder.
+
+Run `npm install` to install 3rd libraries.
+
+Run `ng build --prod` to build the project, the website will be store in the django-angular/dist folder.
+
+Run `node server.js` to start a server. 
+
+Then navigate to `http://localhost:4200/`. 
+
+Input 'app' field and 'model class field', you will get files under django-angular/ 
+
 
 Then paste your model classes of django project and input your django app name, the angular5 components will be generated.
 
