@@ -253,16 +253,17 @@ export class HomeComponent implements OnInit {
         s += "import { " + uClassName + " } from '../" + app + "';\n\n";
 
         s += "@Component({\n"+
-        "    providers:[" + uServiceName + "]\n"+
+        "    providers:[" + uServiceName + "],\n"+
         "    selector: 'app-" + lClassName + "-list',\n"+
-        "    templateUrl: './" + lClassName + "-list.component.html'],\n"+
-        "    styleUrls: './" + lClassName + "-list.component.scss']\n"+
+        "    templateUrl: './" + lClassName + "-list.component.html',\n"+
+        "    styleUrls: ['./" + lClassName + "-list.component.scss']\n"+
         "})\n"+
         "export class " + uClassName + "ListComponent implements OnInit {\n"+
         "    " + lClassName + "List:" + uClassName + "[];\n\n"+
         "    fields:string[] = [];\n"+
         "    constructor(private " + serviceVar + ":" + uServiceName + "){}\n\n"+
         "    ngOnInit() {\n"+
+        "        let self = this;\n"+
         "        let " + lClassName + " = new "+ uClassName +"()\n"+
         "        this.fields = Object.getOwnPropertyNames("+ lClassName + ");\n"+
         "        this." + serviceVar + "." + getListFunc + "().subscribe(\n"+
@@ -272,7 +273,6 @@ export class HomeComponent implements OnInit {
         "            (err:any) => {\n"+
         "                self." + lClassName + "List = [];\n"+
         "            });\n"+
-        "        });\n"+
         "    }\n\n"+
         "    toDetail(r){}\n\n"+
         "}\n\n";
@@ -294,10 +294,10 @@ export class HomeComponent implements OnInit {
         s += "import { " + uClassName + " } from '../" + app + "';\n\n";
 
         s += "@Component({\n"+
-        "    providers:[" + uServiceName + "]\n"+
+        "    providers:[" + uServiceName + "],\n"+
         "    selector: 'app-" + lClassName + "-form',\n"+
-        "    templateUrl: './" + lClassName + "-form.component.html'],\n"+
-        "    styleUrls: './" + lClassName + "-form.component.scss']\n"+
+        "    templateUrl: './" + lClassName + "-form.component.html',\n"+
+        "    styleUrls: ['./" + lClassName + "-form.component.scss']\n"+
         "})\n"+
         "export class " + uClassName + "FormComponent implements OnInit {\n"+
         "    " + lClassName + ":" + uClassName + ";\n\n"+
@@ -312,7 +312,6 @@ export class HomeComponent implements OnInit {
         "                (err:any) => {\n"+
         "                    self." + lClassName + " = null;\n"+
         "                });\n"+
-        "            });\n"+
         "        });\n"+
         "    }\n\n"+
         "    save() {\n"+
@@ -324,7 +323,6 @@ export class HomeComponent implements OnInit {
         "            (err:any) => {\n"+
         "                self." + lClassName + " = null;\n"+
         "            });\n"+
-        "        });\n"+
         "    }\n"+
         "}\n\n";
 
@@ -344,10 +342,10 @@ export class HomeComponent implements OnInit {
         s += "import { " + uClassName + " } from '../" + app + "';\n\n";
 
         s += "@Component({\n"+
-        "    providers:[" + uServiceName + "]\n"+
+        "    providers:[" + uServiceName + "],\n"+
         "    selector: 'app-" + lClassName + "-detail',\n"+
-        "    templateUrl: './" + lClassName + "-detail.component.html'],\n"+
-        "    styleUrls: './" + lClassName + "-detail.component.scss']\n"+
+        "    templateUrl: './" + lClassName + "-detail.component.html',\n"+
+        "    styleUrls: ['./" + lClassName + "-detail.component.scss']\n"+
         "})\n"+
         "export class " + uClassName + "DetailComponent implements OnInit {\n"+
         "    " + lClassName + ":" + uClassName + ";\n\n"+
@@ -362,7 +360,6 @@ export class HomeComponent implements OnInit {
         "                (err:any) => {\n"+
         "                    self." + lClassName + " = null;\n"+
         "                });\n"+
-        "            });\n"+
         "        });\n"+
         "    }\n"+
         "}\n\n";
@@ -385,7 +382,7 @@ export class HomeComponent implements OnInit {
             cNames.push(cls[i].name);
         }
 
-        s += "import { " + cNames.join(',') + " } from " + app + ".model;\n\n";
+        s += "import { " + cNames.join(',') + " } from './" + app + "';\n\n";
         s += "@Injectable()\n"
         s += "export class " + serviceName + "Service {\n";
         s += "    private API_URL = environment.API_URL;\n\n";
@@ -396,10 +393,10 @@ export class HomeComponent implements OnInit {
             var lClassName = className.charAt(0).toLowerCase() + className.slice(1);
             var members = cls[i].members;
 
-            s += "    get" + className + "List(query?:str):Obervable<" + className + "[]>{\n";
+            s += "    get" + className + "List(query?:string):Observable<" + className + "[]>{\n";
             s += "        const url = this.API_URL + '" + lClassName + "' + query;\n";
             s += "        let headers = new HttpHeaders().set('Content-Type', 'application/json');\n";
-            s += "        return this.http.get(url, {'headers': headers}).map((res) => {\n";
+            s += "        return this.http.get(url, {'headers': headers}).map((res:any) => {\n";
             s += "            let a:"+ className +"[] = [];\n";
             s += "            if( res.data && res.data.length > 0){\n";
             s += "                for(var i=0; i<res.data.length; i++){\n";
@@ -413,10 +410,10 @@ export class HomeComponent implements OnInit {
             s += "        });\n";
             s += "    }\n\n";
 
-            s += "    get" + className + "(id:number):Obervable<" + className + ">{\n";
+            s += "    get" + className + "(id:number):Observable<" + className + ">{\n";
             s += "        const url = this.API_URL + '" + lClassName + "/id';\n";
             s += "        let headers = new HttpHeaders().set('Content-Type', 'application/json');\n";
-            s += "        return this.http.get(url, {'headers': headers}).map((res) => {\n";
+            s += "        return this.http.get(url, {'headers': headers}).map((res:any) => {\n";
             s += "            return new "+ className +"(res.data);\n";
             s += "        })\n";
             s += "        .catch((err) => {\n";
@@ -425,8 +422,8 @@ export class HomeComponent implements OnInit {
             s += "    }\n\n";
 
 
-            s += "    save" + className + "(d:" + className + "):Obervable<" + className + ">{\n";
-            s += "        const url = this.API_URL + '" + lClassName + ";\n";
+            s += "    save" + className + "(d:" + className + "):Observable<" + className + ">{\n";
+            s += "        const url = this.API_URL + '" + lClassName + "';\n";
             s += "        let headers = new HttpHeaders().set('Content-Type', 'application/json');\n";
             s += "        let data = {\n";
 
@@ -435,7 +432,7 @@ export class HomeComponent implements OnInit {
             }
 
             s += "        }\n";
-            s += "        return this.http.post(url, data, {'headers': headers}).map((res) => {\n";
+            s += "        return this.http.post(url, data, {'headers': headers}).map((res:any) => {\n";
             s += "            return new "+ className +"(res.data);\n";
             s += "        })\n";
             s += "        .catch((err) => {\n";
