@@ -39,17 +39,17 @@ module.exports = function(){
             var apps = [
                 {name:body.app, source:'', classes:body.classes, 
                     model:{file:'',content:'', expanded:false}, 
-                    service:{file:'',content:'', expanded:false}
+                    service:{file:'',content:'', expanded:false},
+                    module:{file:'',content:'',expanded:false}
                 }];
 
             for(let app of apps){
                 app.model.file = app.name + '/' + app.name + '.ts';
                 app.service.file = app.name + '/' + app.name + '.service.ts';
-
-                //var lines = app.source.match(/[^\r\n]+/g);
-                //app.classes = body.classes;//this.getClass(app.name, lines);
+                app.module.file = app.name + '/' + app.name + '.module.ts';
                 app.model.content = self.createModels(app.classes);
-                app.service.content = self.createServices('commerce', app.classes);    
+                app.service.content = self.createServices(app.name, app.classes);
+                app.module.content = self.createModule(app.name, app.classes);    
             }
 
             let app = apps[0];
@@ -62,6 +62,7 @@ module.exports = function(){
                     fs.mkdir(folder, (err, status)=>{
                         fs.writeFile(app.model.file, app.model.content, (err, status)=>{});
                         fs.writeFile(app.service.file, app.service.content, (err, status)=>{});
+                        fs.writeFile(app.module.file, app.module.content, (err, status)=>{});
 
                         for(let cl of app.classes){
                             for(let c of cl.components){
@@ -179,7 +180,7 @@ module.exports = function(){
             }else if(cat=='form'){
                 if(ext == '.ts'){
                     return this.createFormComponents(app, uClassName);
-                }else if(ext = '.html'){
+                }else if(ext == '.html'){
                     return this.createFormHtml(uClassName, members);
                 }else{
                     return '';
@@ -198,11 +199,13 @@ module.exports = function(){
                 let fileName = componentName + '.component';
                 let exts = ['.html', '.scss', '.spec.ts', '.ts'];
                 let files = [];
+                let componetClassName = uClassName + cat.charAt(0).toUpperCase() + cat.slice(1) + 'Component';
+
                 for(let ext of exts){
                     let content = this.getContent(app, uClassName, members, cat, ext);
                     files.push({'name':fileName + ext, 'content':content, 'expanded':false});
                 }
-                components.push({'name':componentName, 'files':files })
+                components.push({'name':componentName, 'className': componetClassName, 'files':files })
             }
             return components;
         },
@@ -221,12 +224,12 @@ module.exports = function(){
                     s += '  public ' + members[j].name + ':'+ members[j].type +';\n';
                 }
                 s += '  constructor(o?:any){\n';
-                s += '        if(o){\n';
+                s += '      if(o){\n';
                 for(var j=0; j<members.length; j++){
-                    s += '            this.' + members[j].name + ' = o.'+ members[j].name +';\n';
+                    s += '          this.' + members[j].name + ' = o.'+ members[j].name +';\n';
                 }
-                s += '        }\n';
-                s += '    }\n';
+                s += '      }\n';
+                s += '  }\n';
                 s += '}\n\n';
             }
 
@@ -326,7 +329,7 @@ module.exports = function(){
             "    styleUrls: ['./" + lClassName + "-form.component.scss']\n"+
             "})\n"+
             "export class " + uClassName + "FormComponent implements OnInit {\n"+
-            "    " + lClassName + ":" + uClassName + ";\n\n"+
+            "    " + lClassName + ":" + uClassName + " = new " + uClassName + "();\n\n"+
             "    constructor(private " + serviceVar + ":" + uServiceName + ", private route: ActivatedRoute){}\n\n"+
             "    ngOnInit() {\n"+
             "        let self = this;\n"+
@@ -336,7 +339,7 @@ module.exports = function(){
             "                    self." + lClassName + " = r;\n"+
             "                },\n"+
             "                (err:any) => {\n"+
-            "                    self." + lClassName + " = null;\n"+
+            "                    self." + lClassName + " = new " + uClassName + "();\n"+
             "                });\n"+
             "        });\n"+
             "    }\n\n"+
@@ -347,7 +350,7 @@ module.exports = function(){
             "                self." + lClassName + " = r;\n"+
             "            },\n"+
             "            (err:any) => {\n"+
-            "                self." + lClassName + " = null;\n"+
+            "                self." + lClassName + " = new " + uClassName + "();\n"+
             "            });\n"+
             "    }\n"+
             "}\n\n";
@@ -400,7 +403,7 @@ module.exports = function(){
                 "import { Observable } from 'rxjs/Observable';\n" +
                 "import 'rxjs/add/operator/map';\n" +
                 "import 'rxjs/add/operator/catch';\n" +
-                "import { environment } from '../../../envionments/environment';\n";
+                "import { environment } from '../../environments/environment';\n";
 
             var serviceName = app.charAt(0).toUpperCase() + app.slice(1);
             var cNames = [];    
@@ -420,7 +423,7 @@ module.exports = function(){
                 var members = cls[i].members;
 
                 s += "    get" + className + "List(query?:string):Observable<" + className + "[]>{\n";
-                s += "        const url = this.API_URL + '" + lClassName + "' + query;\n";
+                s += "        const url = this.API_URL + '" + lClassName + "' + query ? query:'';\n";
                 s += "        let headers = new HttpHeaders().set('Content-Type', 'application/json');\n";
                 s += "        return this.http.get(url, {'headers': headers}).map((res:any) => {\n";
                 s += "            let a:"+ className +"[] = [];\n";
@@ -467,6 +470,44 @@ module.exports = function(){
                 s += "    }\n\n";
             }
 
+            s += "}\n\n";
+            return s;
+        },
+
+        createModule:function(app, classes){
+            var s = "import { NgModule } from '@angular/core';\n"+
+                "import { CommonModule } from '@angular/common';\n"+
+                "import { FormsModule } from '@angular/forms';\n"+
+                "import { RouterModule } from '@angular/router';\n"+
+                "import { HttpClientModule } from '@angular/common/http';\n";
+
+            var appName = app.charAt(0).toUpperCase() + app.slice(1);
+            var moduleName = appName + 'Module';
+
+            var cNames = [];
+            var cList = [];
+
+            for(var j=0; j<classes.length; j++){
+                var components = classes[j].components;
+                for(var i=0; i<components.length; i++){
+                    var clName = components[i].className;
+                    var name = components[i].name;
+                    s += "import { " + clName + " } from './" + name + "/" + name + ".component';\n";
+                    cList.push(clName);
+                }
+            }    
+
+            s += "@NgModule({\n"+
+            "   imports:[\n"+
+            "      CommonModule,\n"+
+            "      FormsModule,\n"+
+            "      RouterModule,\n"+
+            "      HttpClientModule\n"+
+            "   ],\n"+
+            "   exports:[" +  cList.join(',') +"],\n"+
+            "   declarations:[" + cList.join(',') +"]\n"+
+            "})\n"+
+            "export class " + moduleName + " { }\n";
             return s;
         }
     }

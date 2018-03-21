@@ -12,6 +12,11 @@
       </div>
 
       <div class="row">Files for angular 5:</div>
+      
+      <div class="row">
+        <div class="col-md-12 file" (click)=toggleTextarea(app.module)><a>{{app.module.file}}</a></div>
+        <textarea *ngIf="app.module.expanded" class="result-block" name="module" [(ngModel)]="app.module.content"></textarea>
+      </div>
 
       <div class="row">
         <div class="col-md-12 file" (click)=toggleTextarea(app.model)><a>{{app.model.file}}</a></div>
