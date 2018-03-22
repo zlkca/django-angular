@@ -1,25 +1,27 @@
-# Django-Angular
+# restful-hub
 
-A powerful tool to generate model classes of django format to angular5 components !
+A powerful tool to generate a demo website of angular5 and django!
 
-You just need to define your Model Class with Django format, and this tool will generate 'ready to use' Angular modules, services and component.
+Input your model class design into restful-hub, it will generate front-end source code of web pages (say angular5 format) and backend source code of services (say django format).
+
+Currently we only support angular and django, in the near future, we will support more frameworks, angular, react, vue, django, nodejs, flask, java, .net ... are in our list.
+
 
 ## Install and run
 
-Use git to clone the project and cd to djanto-angular folder.
+Use git to clone the project, and cd to restful-hub folder.
 
 Run `npm install` to install 3rd libraries.
 
-Run `ng build --prod` to build the project, the website will be store in the django-angular/dist folder.
+Run `ng build --prod` to build the project, the website will be store in the restful-hub/dist folder.
 
 Run `node server.js` to start a server. 
 
 Then navigate to `http://localhost:5004`. 
 
-Input 'app' field (Here we use 'commerce' as app name) and 'model class field', you will get files under django-angular/commerce 
+Input 'app' field (Say we use 'commerce' as app name) and 'model class' field, then click the 'Generate Files' button, it will generate angular source code under restful-hub/angular/commerce, and django source code under restful-hub/django/commerce. 
 
-
-Then paste your model classes of django project and input your django app name, the angular5 components will be generated.
+Paste those generated files into your angular and django project, add some code to link the module, and your demo project will have CRUD ability quickly.
 
 ## Usage
 
