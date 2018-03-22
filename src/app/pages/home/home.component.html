@@ -1,31 +1,21 @@
 <form class="src-form" #srcForm="ngForm" novalidate>
   <div class="container">
 
-    <div *ngFor="let app of apps">
+    
       <div class="row">
         <div class="col-md-12">Input/Paste your app name in Django Format:</div>
-        <input name="app" [(ngModel)]="app.name" (ngModelChange)="convert($event)"/>
+        <input name="app" [(ngModel)]="app.name" (ngModelChange)="convert()"/>
       </div>
       <div class="row">
         <div class="col-md-12">Input/Paste your model classes in Django Format:</div>
-        <textarea id="source" name="source" [(ngModel)]="app.source" (ngModelChange)="convert($event)"></textarea>
+        <textarea id="source" name="source" [(ngModel)]="app.source" (ngModelChange)="convert()"></textarea>
       </div>
 
-      <div class="row">Files for angular 5:</div>
+      <div class="row area-label">Generated Files for angular 5:</div>
       
-      <div class="row">
-        <div class="col-md-12 file" (click)=toggleTextarea(app.module)><a>{{app.module.file}}</a></div>
-        <textarea *ngIf="app.module.expanded" class="result-block" name="module" [(ngModel)]="app.module.content"></textarea>
-      </div>
-
-      <div class="row">
-        <div class="col-md-12 file" (click)=toggleTextarea(app.model)><a>{{app.model.file}}</a></div>
-        <textarea *ngIf="app.model.expanded" class="result-block" name="model" [(ngModel)]="app.model.content"></textarea>
-      </div>
-
-      <div class="row">
-        <div class="col-md-12 file" (click)=toggleTextarea(app.service)><a>{{app.service.file}}</a></div>
-        <textarea *ngIf="app.service.expanded" class="result-block" name="service" [(ngModel)]="app.service.content"></textarea>
+      <div class="row" *ngFor="let item of app.angular">
+        <div class="col-md-12 file" (click)=toggleTextarea(item)><a>{{item.file}}</a></div>
+        <textarea *ngIf="item.expanded" class="result-block" name="module" [(ngModel)]="item.content"></textarea>
       </div>
 
       <div class="row" *ngFor="let cls of app.classes">
@@ -37,7 +27,13 @@
         </div>
       </div>
 
-    </div>
+      <div class="row area-label">Generated Files for Django:</div>
+      
+      <div class="row" *ngFor="let item of app.django">
+        <div class="col-md-12 file" (click)=toggleTextarea(item)><a>{{item.file}}</a></div>
+        <textarea *ngIf="item.expanded" class="result-block" name="module" [(ngModel)]="item.content"></textarea>
+      </div>
+
   </div>
 
   <div style="width:100%;height:40px;float:left;">

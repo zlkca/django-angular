@@ -12,14 +12,11 @@ export class HomeComponent implements OnInit {
     public source:string = '';
     public model:string = '';
     public service:string = '';
-    public apps:any[] = [
-        {name:'commerce', source:'', classes:[], 
-            model:{file:'',content:'', expanded:false}, 
-            service:{file:'',content:'', expanded:false},
-            module:{file:'',content:'',expanded:false}
-        }];
+    public app:any = {'name':'commerce', 'source':'', 'classes':[], 'angular':[], 'django':[]};
 
-    constructor(private mainServ:MainService) { }
+    constructor(private mainServ:MainService) {
+
+    }
 
     ngOnInit() {
 
@@ -30,7 +27,7 @@ export class HomeComponent implements OnInit {
     }
 
     generateFiles(){
-        this.mainServ.generateModels(this.apps[0].name, this.apps[0].classes).subscribe(
+        this.mainServ.generateModels(this.app.name, this.app.classes).subscribe(
             (ps:any) => {
                 console.log(ps.data);
                 //self.model = ps.data;//self.toProductGrid(data);
@@ -42,31 +39,24 @@ export class HomeComponent implements OnInit {
     }
 
     convert(){
-        for(let app of this.apps){
-            app.model.file = app.name + '/' + app.name + '.ts';
-            app.service.file = app.name + '/' + app.name + '.service.ts';
+        let app = this.app;
+        let self = this;
+        let lines = app.source.match(/[^\r\n]+/g);
+        let classes = this.getClass(app.name, lines);
+        let appName = this.app.name;
 
-            var lines = app.source.match(/[^\r\n]+/g);
-            app.classes = this.getClass(app.name, lines);
+        this.app.classes = classes;
 
-            app.model.content = this.createModels(app.classes);
-            app.service.content = this.createServices('commerce', app.classes);
+        this.app.angular = [
+                {file: 'angular/' + appName + '/' + appName + '.ts', content:self.createModels(classes), expanded:false},
+                {file: 'angular/' + appName + '/' + appName + '.service.ts', content:self.createServices(appName, classes), expanded:false},
+                {file: 'angular/' + appName + '/' + appName + '.module.ts', content:self.createModule(appName, classes), expanded:false}
+            ];
 
-            app.module.file = app.name + '/' + app.name + '.module.ts';
-            app.module.content = this.createModule(app.name, app.classes);    
-        }
-
-        // this.mainServ.generateServices('commerce', cls).subscribe(
-        //     (ps:any) => {
-        //         console.log(ps.data);
-        //         self.service = ps.data;//self.toProductGrid(data);
-        //     },
-        //     (err:any) => {
-        //         self.service = 'Error';
-        //     }
-        // );
-        //this.model = this.createModels(cls);
-        //this.service = this.createService('commerce', cls);
+        this.app.django = [
+                {file:'django/' + appName + '/views.py', content:self.createView(appName, classes), expanded:false},
+                {file:'django/' + appName + '/urls.py', content:self.createUrls(appName, classes), expanded:false}
+            ]; 
     }
 
     findModelClassHead(s){
@@ -486,6 +476,65 @@ export class HomeComponent implements OnInit {
         "   declarations:[" + cList.join(',') +"]\n"+
         "})\n"+
         "export class " + moduleName + " { }\n";
+        return s;
+    }
+
+    // django
+    createView(app, classes){
+        let s = "import json\n"+
+            "from django.http import JsonResponse\n"+
+            "from django.core import serializers\n"+
+            "from django.views.generic import View\n"+
+            "from django.views.decorator.csrf import csrf_exempt\n";
+        
+        let cNames = [];
+        for(let c of classes){
+            cNames.push(c.name);
+        }
+        s += "from " + app + ".models import " + cNames.join(', ') + "\n\n";
+
+        for(let c of classes){
+
+            s += "@method_decorator(csrf_exempt, name='dispatch')\n"+
+            "class " + c.name + "View(View):\n"+
+            "   def get(self, req, *args, **kwargs):\n"+
+            "       try:\n"+
+            "           items = " + c.name + ".objects.all()\n"+
+            "       except Exception as e:\n"+
+            "           return JsonResponse({data:[]})\n"+
+            "       d = serializers.serialize(\"json\", items)\n"+
+            "       return JsonResponse({data:d})\n\n"+
+            "   def post(self, req, *args, **kwargs):\n"+
+            "       params = json.loads(req.body)\n"+
+            "       item = " + c.name + "()\n";
+            for(let m of c.members){
+                s += "       item." + m.name + " = params.get('" + m.name + "')\n";
+            }
+
+            s += "       item.save()\n"+
+            "       d = serializers.serialize(\"json\")\n"+
+            "       return JsonResponse({data:d})\n\n";
+        }
+
+        return s;
+    }
+
+    createUrls(app, classes){
+        let s = "from django.conf.urls import url\n"+
+        "from " + app + ".views import ";
+
+        let vs = [];
+        for(let c of classes){
+            vs.push(c.name + 'View');
+        }
+        s += vs.join(', ') + "\n\n"+
+        "urlpatterns = [\n";
+
+        for(let c of classes){
+            s += "   url(r'^api/" + c.name.toLowerCase() + "', " + c.name + "View.as_view()),\n"
+        }
+        s += "]\n";
+
         return s;
     }
 }

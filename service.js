@@ -29,44 +29,34 @@ module.exports = function(){
     //     }
     // }
 
-    
-
     var self = {
         getModels: function(req, res){
             var body = req.body;
             //var s = createModels(body.classes);
-            
-            var apps = [
-                {name:body.app, source:'', classes:body.classes, 
-                    model:{file:'',content:'', expanded:false}, 
-                    service:{file:'',content:'', expanded:false},
-                    module:{file:'',content:'',expanded:false}
-                }];
+            var appName = body.app;
+            var classes = body.classes;
+            var app = {'name':appName, 'source':'', 'classes':classes,
+                    angular:[
+                        {file: 'angular/' + appName + '/' + appName + '.ts', content:self.createModels(classes), expanded:false},
+                        {file: 'angular/' + appName + '/' + appName + '.service.ts', content:self.createServices(appName, classes), expanded:false},
+                        {file: 'angular/' + appName + '/' + appName + '.module.ts', content:self.createModule(appName, classes), expanded:false}
+                    ],
+                    django:[
+                        {file:'django/' + appName + '/views.py', content:self.createView(appName, classes), expanded:false},
+                        {file:'django/' + appName + '/urls.py', content:self.createUrls(appName, classes), expanded:false}
+                    ]
+                };
 
-            for(let app of apps){
-                app.model.file = app.name + '/' + app.name + '.ts';
-                app.service.file = app.name + '/' + app.name + '.service.ts';
-                app.module.file = app.name + '/' + app.name + '.module.ts';
-                app.model.content = self.createModels(app.classes);
-                app.service.content = self.createServices(app.name, app.classes);
-                app.module.content = self.createModule(app.name, app.classes);    
-            }
-
-            let app = apps[0];
-            let folder = './' + app.name;
-
-            fs.stat(folder, (err, status)=>{
-                    //console.log(err);
-                    //console.log(status);
-
-                    fs.mkdir(folder, (err, status)=>{
-                        fs.writeFile(app.model.file, app.model.content, (err, status)=>{});
-                        fs.writeFile(app.service.file, app.service.content, (err, status)=>{});
-                        fs.writeFile(app.module.file, app.module.content, (err, status)=>{});
-
+            fs.mkdir('angular', (err, status)=>{
+                //fs.stat('angular/'+appName, (err, status)=>{
+                    fs.mkdir('angular/'+appName, (err, status)=>{
+                        for(var item of app.angular){
+                            fs.writeFile(item.file, item.content, (err, status)=>{});
+                        }
+                            
                         for(let cl of app.classes){
                             for(let c of cl.components){
-                                let d = folder + '/' + c.name.toLowerCase();
+                                let d = 'angular/'+ appName + '/' + c.name.toLowerCase();
                                 fs.mkdir(d, (err, status)=>{
                                     for(let f of c.files){
                                         let fname = d + '/' + f.name;
@@ -78,6 +68,14 @@ module.exports = function(){
                             }
                         }
                     });
+                //});
+            });
+            fs.mkdir('django', (err, status)=>{
+                fs.mkdir('django/' + appName, (err, status)=>{
+                    for(var item of app.django){
+                        fs.writeFile(item.file, item.content, (err, status)=>{});
+                    }
+                });
             });
 
             // var file = fs.createWriteStream("mytest.py");
@@ -509,7 +507,68 @@ module.exports = function(){
             "})\n"+
             "export class " + moduleName + " { }\n";
             return s;
+        },
+
+        // django
+        createView:function(app, classes){
+            let s = "import json\n"+
+                "from django.http import JsonResponse\n"+
+                "from django.core import serializers\n"+
+                "from django.views.generic import View\n"+
+                "from django.views.decorator.csrf import csrf_exempt\n";
+            
+            let cNames = [];
+            for(let c of classes){
+                cNames.push(c.name);
+            }
+            s += "from " + app + ".models import " + cNames.join(', ') + "\n\n";
+
+            for(let c of classes){
+
+                s += "@method_decorator(csrf_exempt, name='dispatch')\n"+
+                "class " + c.name + "View(View):\n"+
+                "   def get(self, req, *args, **kwargs):\n"+
+                "       try:\n"+
+                "           items = " + c.name + ".objects.all()\n"+
+                "       except Exception as e:\n"+
+                "           return JsonResponse({data:[]})\n"+
+                "       d = serializers.serialize(\"json\", items)\n"+
+                "       return JsonResponse({data:d})\n\n"+
+                "   def post(self, req, *args, **kwargs):\n"+
+                "       params = json.loads(req.body)\n"+
+                "       item = " + c.name + "()\n";
+                for(let m of c.members){
+                    s += "       item." + m.name + " = params.get('" + m.name + "')\n";
+                }
+
+                s += "       item.save()\n"+
+                "       d = serializers.serialize(\"json\")\n"+
+                "       return JsonResponse({data:d})\n\n";
+            }
+
+            return s;
+        },
+
+        createUrls:function(app, classes){
+            let s = "from django.conf.urls import url\n"+
+            "from " + app + ".views import ";
+
+            let vs = [];
+            for(let c of classes){
+                vs.push(c.name + 'View');
+            }
+            s += vs.join(', ') + "\n\n"+
+            "urlpatterns = [\n";
+
+            for(let c of classes){
+                s += "   url(r'^api/" + c.name.toLowerCase() + "', " + c.name + "View.as_view()),\n"
+            }
+            s += "]\n";
+
+            return s;
         }
+
+
     }
 
     return self;
