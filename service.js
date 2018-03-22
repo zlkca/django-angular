@@ -515,7 +515,8 @@ module.exports = function(){
                 "from django.http import JsonResponse\n"+
                 "from django.core import serializers\n"+
                 "from django.views.generic import View\n"+
-                "from django.views.decorator.csrf import csrf_exempt\n";
+                "from django.views.decorators.csrf import csrf_exempt\n"+
+                "from django.utils.decorators import method_decorator\n";
             
             let cNames = [];
             for(let c of classes){
@@ -531,9 +532,9 @@ module.exports = function(){
                 "       try:\n"+
                 "           items = " + c.name + ".objects.all()\n"+
                 "       except Exception as e:\n"+
-                "           return JsonResponse({data:[]})\n"+
+                "           return JsonResponse({'data':[]})\n"+
                 "       d = serializers.serialize(\"json\", items)\n"+
-                "       return JsonResponse({data:d})\n\n"+
+                "       return JsonResponse({'data':d})\n\n"+
                 "   def post(self, req, *args, **kwargs):\n"+
                 "       params = json.loads(req.body)\n"+
                 "       item = " + c.name + "()\n";
@@ -543,7 +544,7 @@ module.exports = function(){
 
                 s += "       item.save()\n"+
                 "       d = serializers.serialize(\"json\")\n"+
-                "       return JsonResponse({data:d})\n\n";
+                "       return JsonResponse({'data':d})\n\n";
             }
 
             return s;
