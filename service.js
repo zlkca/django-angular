@@ -15,40 +15,32 @@ module.exports = function(){
 //     var _name = 'cities';
 //     var _db = new DB();
 //     var _collection = _db.getCollection(_name);
-    
-
-    // convert(){
-    //     for(let app of this.apps){
-    //         app.model.file = app.name + '/' + app.name + '.ts';
-    //         app.service.file = app.name + '/' + app.name + '.service.ts';
-
-    //         var lines = app.source.match(/[^\r\n]+/g);
-    //         app.classes = this.getClass(app.name, lines);
-    //         app.model.content = this.createModels(app.classes);
-    //         app.service.content = this.createServices('commerce', app.classes);    
-    //     }
-    // }
 
     var self = {
         getModels: function(req, res){
             var body = req.body;
             //var s = createModels(body.classes);
-            var appName = body.app;
-            var classes = body.classes;
-            var app = {'name':appName, 'source':'', 'classes':classes,
-                    angular:[
-                        {file: 'angular/' + appName + '/' + appName + '.ts', content:self.createModels(classes), expanded:false},
+            let apps = body.apps;
+
+            for(let app of apps){
+                var appName = app.name;
+                var classes = app.classes;
+            
+                app['angular'] = [
+                        {file: 'angular/' + appName + '/' + appName + '.ts', content:self.createModels(appName, classes, apps), expanded:false},
                         {file: 'angular/' + appName + '/' + appName + '.service.ts', content:self.createServices(appName, classes), expanded:false},
                         {file: 'angular/' + appName + '/' + appName + '.module.ts', content:self.createModule(appName, classes), expanded:false}
-                    ],
-                    django:[
+                    ];
+                app['django'] = [
                         {file:'django/' + appName + '/views.py', content:self.createView(appName, classes), expanded:false},
                         {file:'django/' + appName + '/urls.py', content:self.createUrls(appName, classes), expanded:false}
-                    ]
-                };
+                    ];
+            }
 
             fs.mkdir('angular', (err, status)=>{
                 //fs.stat('angular/'+appName, (err, status)=>{
+                for(let app of apps){
+                    let appName = app.name;
                     fs.mkdir('angular/'+appName, (err, status)=>{
                         for(var item of app.angular){
                             fs.writeFile(item.file, item.content, (err, status)=>{});
@@ -68,21 +60,25 @@ module.exports = function(){
                             }
                         }
                     });
-                //});
+                }
             });
+            
             fs.mkdir('django', (err, status)=>{
-                fs.mkdir('django/' + appName, (err, status)=>{
-                    for(var item of app.django){
-                        fs.writeFile(item.file, item.content, (err, status)=>{});
-                    }
-                });
+                for(let app of apps){
+                    let appName = app.name;
+                    fs.mkdir('django/' + appName, (err, status)=>{
+                        for(var item of app.django){
+                            fs.writeFile(item.file, item.content, (err, status)=>{});
+                        }
+                    });
+                }
             });
 
             // var file = fs.createWriteStream("mytest.py");
             // res.pip(file);
             return res.json({ success: true, data: ''});
         },
-        
+
         getServices: function(req, rsp){
             var body = req.body;
             var s = createServices(body.app, body.classes);
@@ -91,7 +87,7 @@ module.exports = function(){
         
         findModelClassHead: function(s){
             // return array of the match string
-            var m = s.match(/class[\s]+[$a-zA-Z_][a-zA-Z0-9_$]*\([Model|models.Model]+\)/g);
+            var m = s.match(/class[\s]+[$a-zA-Z_][a-zA-Z0-9_$]*\([Model|models.Model|AbstractUser]+\)/g);
             if(m){
                 return m;
             }else{
@@ -103,7 +99,7 @@ module.exports = function(){
             if(line.indexOf('CharField')!=-1||line.indexOf('DateTimeField')!=-1){
                 return 'string';
             }else if(line.indexOf('ForeignKey')){
-                return 'string';
+                return 'foreignKey';
             }else if(line.indexOf('DecimalField')!=-1||line.indexOf('IntegerField')!=-1){
                 return 'number';
             }else{
@@ -111,6 +107,15 @@ module.exports = function(){
             }
         },
         
+        getForeignKeyClass:function(type, line){
+            if(type == 'foreignKey'){
+                var s = line.split('(')[1].replace(')','');
+                return s.split(',')[0].trim();
+            }else{
+                return '';
+            }
+        },
+
         getMembers:function(lines, i){
             var line = lines[i];
             var a = [];
@@ -120,13 +125,14 @@ module.exports = function(){
                 var re = new RegExp(TYPES.join("|"));
                 var r = re.test(line);
                 if(r){
-                    console.log(r);
+                    //console.log(r);
                     var s = line.split('=');
                     var name = s[0].trim();
 
                     if(name.indexOf('#')==-1){
                         var t = this.getType(line);
-                        a.push({'name':name, 'type':t});
+                        var fClass = this.getForeignKeyClass(line);
+                        a.push({'name':name, 'type':t, 'foreignKeyClass':fClass});
                     }
                 }
                 i++;
@@ -136,6 +142,17 @@ module.exports = function(){
                 }
             }
             return a;//{'line':i, 'members':a};
+        },
+
+        getAppNameByClass:function(className, apps){
+            for(let app of apps){
+                for(let cls of app.classes){
+                    if(cls.name == className){
+                        return app.name;
+                    }
+                }
+            }
+            return null;
         },
 
         getClass:function(app, lines){
@@ -208,18 +225,57 @@ module.exports = function(){
             return components;
         },
 
-        createModels:function(cls){
+        getDependencies:function(classes, apps){
+            
+            let dependencies = [];
+            for(let cls of classes){
+                for(let member of cls.members){
+                    if(member.type == 'foreignKey'){
+                        let appName = this.getAppNameByClass(cls.name, apps);
+                        let name = this.getAppNameByClass(member.foreignKeyClass, apps);
+                        if(appName != name){
+                            let ra = dependencies.find( x=> x && x.appName == name);
+
+                            if(!ra){
+                                dependencies.push({'appName':name, 'classNames':[member.foreignKeyClass]});
+                            }else{
+                                let r = ra.classNames.find( x=> x && x == member.foreignKeyClass );
+                                if(!r){
+                                    ra.classNames.push(member.foreignKeyClass);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return dependencies;
+        },
+
+        createModels:function(appName, classes, apps){
             // app --- django app
             // cls --- django model class
-
+            let deps = this.getDependencies(classes, apps);
             var s = '';
-            for(var i=0; i<cls.length; i++){
-                var className = cls[i].name;
-                var members = cls[i].members;
+            if(deps.length>0){
+                for(let dep of deps){
+                    s += "import { " + dep.classNames.join(', ') + " } from '../" + dep.appName + "/" + dep.appName + "';\n";
+                }
+                s += "\n";
+            };
+            
+            
+            for(var i=0; i<classes.length; i++){
+                var className = classes[i].name;
+                var members = classes[i].members;
                 s += 'export class ' + className + '{\n';
 
                 for(var j=0; j<members.length; j++){
-                    s += '  public ' + members[j].name + ':'+ members[j].type +';\n';
+                    var t = members[j].type;
+                    if(t=='foreignKey'){
+                        s += '  public ' + members[j].name + ':'+ members[j].foreignKeyClass +';\n';
+                    }else{
+                        s += '  public ' + members[j].name + ':'+ t +';\n';
+                    }
                 }
                 s += '  constructor(o?:any){\n';
                 s += '      if(o){\n';
@@ -562,7 +618,7 @@ module.exports = function(){
             "urlpatterns = [\n";
 
             for(let c of classes){
-                s += "   url(r'^api/" + c.name.toLowerCase() + "', " + c.name + "View.as_view()),\n"
+                s += "   url('" + c.name.toLowerCase() + "', " + c.name + "View.as_view()),\n"
             }
             s += "]\n";
 

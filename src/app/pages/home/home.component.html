@@ -1,37 +1,43 @@
 <form class="src-form" #srcForm="ngForm" novalidate>
   <div class="container">
-
-    
-      <div class="row">
-        <div class="col-md-12">Input/Paste your app name in Django Format:</div>
-        <input name="app" [(ngModel)]="app.name" (ngModelChange)="convert()"/>
+      <div *ngFor="let app of apps; let i = index">
+        <div class="row">
+          <div class="col-md-12">Input/Paste your app name in Django Format:</div>
+          <input name="app{{i}}" [(ngModel)]="apps[i].name" (ngModelChange)="convert()">
+        </div>
+        <div class="row">
+          <div class="col-md-12">Input/Paste your model classes in Django Format:</div>
+          <textarea class="source-block" name="source{{i}}" [(ngModel)]="apps[i].source" (ngModelChange)="convert()"></textarea>
+        </div>
       </div>
-      <div class="row">
-        <div class="col-md-12">Input/Paste your model classes in Django Format:</div>
-        <textarea id="source" name="source" [(ngModel)]="app.source" (ngModelChange)="convert()"></textarea>
-      </div>
 
-      <div class="row area-label">Generated Files for angular 5:</div>
+      <button (click)="addModel()">Add more model</button>
+
       
-      <div class="row" *ngFor="let item of app.angular">
-        <div class="col-md-12 file" (click)=toggleTextarea(item)><a>{{item.file}}</a></div>
-        <textarea *ngIf="item.expanded" class="result-block" name="module" [(ngModel)]="item.content"></textarea>
-      </div>
+      <div class="row area-label">Generated Files for angular 5:</div>
+      <div *ngFor="let app of apps">  
+        <div class="row" *ngFor="let item of app.angular">
+          <div class="col-md-12 file" (click)=toggleTextarea(item)><a>{{item.file}}</a></div>
+          <textarea *ngIf="item.expanded" class="result-block" name="module" [(ngModel)]="item.content"></textarea>
+        </div>
 
-      <div class="row" *ngFor="let cls of app.classes">
-        <div class="col-md-12" *ngFor="let c of cls.components">
-          <div class="col-md-12 file" *ngFor="let f of c.files">
-            <div class="col-md-12" (click)=toggleTextarea(f)><a>{{app.name}}/{{c.name}}/{{f.name}}</a></div>
-            <textarea *ngIf="f.expanded" class="result-block" name="{{f.name}}" [(ngModel)]="f.content"></textarea>
+        <div class="row" *ngFor="let cls of app.classes">
+          <div class="col-md-12" *ngFor="let c of cls.components">
+            <div class="col-md-12 file" *ngFor="let f of c.files">
+              <div class="col-md-12" (click)=toggleTextarea(f)><a>angular/{{app.name}}/{{c.name}}/{{f.name}}</a></div>
+              <textarea *ngIf="f.expanded" class="result-block" name="{{f.name}}" [(ngModel)]="f.content"></textarea>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="row area-label">Generated Files for Django:</div>
       
-      <div class="row" *ngFor="let item of app.django">
-        <div class="col-md-12 file" (click)=toggleTextarea(item)><a>{{item.file}}</a></div>
-        <textarea *ngIf="item.expanded" class="result-block" name="module" [(ngModel)]="item.content"></textarea>
+      <div *ngFor="let app of apps">
+        <div class="row" *ngFor="let item of app.django">
+          <div class="col-md-12 file" (click)=toggleTextarea(item)><a>{{item.file}}</a></div>
+          <textarea *ngIf="item.expanded" class="result-block" name="module" [(ngModel)]="item.content"></textarea>
+        </div>
       </div>
 
   </div>

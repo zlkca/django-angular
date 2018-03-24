@@ -12,7 +12,7 @@ export class HomeComponent implements OnInit {
     public source:string = '';
     public model:string = '';
     public service:string = '';
-    public app:any = {'name':'commerce', 'source':'', 'classes':[], 'angular':[], 'django':[]};
+    public apps:any = [{'name':'', 'source':'', 'classes':[], 'angular':[], 'django':[]}];
 
     constructor(private mainServ:MainService) {
 
@@ -26,8 +26,20 @@ export class HomeComponent implements OnInit {
         item.expanded = !item.expanded;
     }
 
-    generateFiles(){
-        this.mainServ.generateModels(this.app.name, this.app.classes).subscribe(
+    addModel(){
+        this.apps.push({'name':'', 'source':'', 'classes':[], 'angular':[], 'django':[]});
+    }
+
+    generateFiles(){    
+        let apps = [];
+        this.convert();
+        for(let app of this.apps){
+            if(app.name){
+                apps.push({'name':app.name, 'classes': app.classes});
+            }
+        }
+
+        this.mainServ.generateModels(apps).subscribe(
             (ps:any) => {
                 console.log(ps.data);
                 //self.model = ps.data;//self.toProductGrid(data);
@@ -39,29 +51,32 @@ export class HomeComponent implements OnInit {
     }
 
     convert(){
-        let app = this.app;
         let self = this;
-        let lines = app.source.match(/[^\r\n]+/g);
-        let classes = this.getClass(app.name, lines);
-        let appName = this.app.name;
+        for(let app of this.apps){
+            if(app.name){
+                let lines = app.source.match(/[^\r\n]+/g);
+                let classes = this.getClass(app.name, lines);
+                let appName = app.name;
 
-        this.app.classes = classes;
+                app.classes = classes;
 
-        this.app.angular = [
-                {file: 'angular/' + appName + '/' + appName + '.ts', content:self.createModels(classes), expanded:false},
-                {file: 'angular/' + appName + '/' + appName + '.service.ts', content:self.createServices(appName, classes), expanded:false},
-                {file: 'angular/' + appName + '/' + appName + '.module.ts', content:self.createModule(appName, classes), expanded:false}
-            ];
+                app.angular = [
+                    {file: 'angular/' + appName + '/' + appName + '.ts', content:self.createModels(appName, classes, self.apps), expanded:false},
+                    {file: 'angular/' + appName + '/' + appName + '.service.ts', content:self.createServices(appName, classes), expanded:false},
+                    {file: 'angular/' + appName + '/' + appName + '.module.ts', content:self.createModule(appName, classes), expanded:false}
+                ];
 
-        this.app.django = [
-                {file:'django/' + appName + '/views.py', content:self.createView(appName, classes), expanded:false},
-                {file:'django/' + appName + '/urls.py', content:self.createUrls(appName, classes), expanded:false}
-            ]; 
+                app.django = [
+                    {file:'django/' + appName + '/views.py', content:self.createView(appName, classes), expanded:false},
+                    {file:'django/' + appName + '/urls.py', content:self.createUrls(appName, classes), expanded:false}
+                ];
+            }
+        } 
     }
 
     findModelClassHead(s){
         // return array of the match string
-        var m = s.match(/class[\s]+[$a-zA-Z_][a-zA-Z0-9_$]*\([Model|models.Model]+\)/g);
+        var m = s.match(/class[\s]+[$a-zA-Z_][a-zA-Z0-9_$]*\([Model|models.Model|AbstractUser]+\)/g);
         if(m){
             return m;
         }else{
@@ -73,7 +88,7 @@ export class HomeComponent implements OnInit {
         if(line.indexOf('CharField')!=-1||line.indexOf('DateTimeField')!=-1){
             return 'string';
         }else if(line.indexOf('ForeignKey')){
-            return 'string';
+            return 'foreignKey';
         }else if(line.indexOf('DecimalField')!=-1||line.indexOf('IntegerField')!=-1){
             return 'number';
         }else{
@@ -81,7 +96,17 @@ export class HomeComponent implements OnInit {
         }
     }
     
+    getForeignKeyClass(type, line){
+        if(type == 'foreignKey'){
+            var s = line.split('(')[1].replace(')','');
+            return s.split(',')[0].trim();
+        }else{
+            return '';
+        }
+    }
+
     getMembers(lines, i){
+        // get class member of the model class
         var line = lines[i];
         var a = [];
         var found = false;
@@ -96,7 +121,8 @@ export class HomeComponent implements OnInit {
 
                 if(name.indexOf('#')==-1){
                     var t = this.getType(line);
-                    a.push({'name':name, 'type':t});
+                    var fClass = this.getForeignKeyClass(t, line);
+                    a.push({'name':name, 'type':t, 'foreignKeyClass':fClass});
                 }
             }
             i++;
@@ -106,6 +132,17 @@ export class HomeComponent implements OnInit {
             }
         }
         return a;//{'line':i, 'members':a};
+    }
+
+    getAppNameByClass(className, apps){
+        for(let app of apps){
+            for(let cls of app.classes){
+                if(cls.name == className){
+                    return app.name;
+                }
+            }
+        }
+        return null;
     }
 
     getClass(app, lines){
@@ -178,18 +215,56 @@ export class HomeComponent implements OnInit {
         return components;
     }
 
-    createModels(cls){
+    getDependencies(classes, apps){
+        let dependencies = [];
+        for(let cls of classes){
+            for(let member of cls.members){
+                if(member.type == 'foreignKey'){
+                    let appName = this.getAppNameByClass(cls.name, apps);
+                    let name = this.getAppNameByClass(member.foreignKeyClass, apps);
+                    if(appName != name){
+                        let ra = dependencies.find( x=> x && x.appName == name);
+
+                        if(!ra){
+                            dependencies.push({'appName':name, 'classNames':[member.foreignKeyClass]});
+                        }else{
+                            let r = ra.classNames.find( x=> x && x == member.foreignKeyClass );
+                            if(!r){
+                                ra.classNames.push(member.foreignKeyClass);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return dependencies;
+    }
+
+    createModels(appName, classes, apps){
         // app --- django app
         // cls --- django model class
-
+        let deps = this.getDependencies(classes, apps);
         var s = '';
-        for(var i=0; i<cls.length; i++){
-            var className = cls[i].name;
-            var members = cls[i].members;
+        if(deps.length>0){
+            for(let dep of deps){
+                s += "import { " + dep.classNames.join(', ') + " } from '../" + dep.appName + "/" + dep.appName + "';\n";
+            }
+            s += "\n";
+        };
+        
+        
+        for(var i=0; i<classes.length; i++){
+            var className = classes[i].name;
+            var members = classes[i].members;
             s += 'export class ' + className + '{\n';
 
             for(var j=0; j<members.length; j++){
-                s += '  public ' + members[j].name + ':'+ members[j].type +';\n';
+                var t = members[j].type;
+                if(t=='foreignKey'){
+                    s += '  public ' + members[j].name + ':'+ members[j].foreignKeyClass +';\n';
+                }else{
+                    s += '  public ' + members[j].name + ':'+ t +';\n';
+                }
             }
             s += '  constructor(o?:any){\n';
             s += '      if(o){\n';
