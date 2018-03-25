@@ -67,7 +67,7 @@ export class HomeComponent implements OnInit {
                 ];
 
                 app.django = [
-                    {file:'django/' + appName + '/views.py', content:self.createView(appName, classes), expanded:false},
+                    {file:'django/' + appName + '/views.py', content:self.createView(appName, classes, self.apps), expanded:false},
                     {file:'django/' + appName + '/urls.py', content:self.createUrls(appName, classes), expanded:false}
                 ];
             }
@@ -243,15 +243,15 @@ export class HomeComponent implements OnInit {
     createModels(appName, classes, apps){
         // app --- django app
         // cls --- django model class
-        let deps = this.getDependencies(classes, apps);
         var s = '';
+
+        let deps = this.getDependencies(classes, apps);            
         if(deps.length>0){
             for(let dep of deps){
                 s += "import { " + dep.classNames.join(', ') + " } from '../" + dep.appName + "/" + dep.appName + "';\n";
             }
             s += "\n";
         };
-        
         
         for(var i=0; i<classes.length; i++){
             var className = classes[i].name;
@@ -261,15 +261,23 @@ export class HomeComponent implements OnInit {
             for(var j=0; j<members.length; j++){
                 var t = members[j].type;
                 if(t=='foreignKey'){
-                    s += '  public ' + members[j].name + ':'+ members[j].foreignKeyClass +';\n';
+                    //s += '  public ' + members[j].name + ':'+ members[j].foreignKeyClass +';\n';
+                    s += '  public ' + members[j].name + ':any;\n';
                 }else{
                     s += '  public ' + members[j].name + ':'+ t +';\n';
                 }
             }
-            s += '  constructor(o?:any){\n';
-            s += '      if(o){\n';
-            for(var j=0; j<members.length; j++){
-                s += '          this.' + members[j].name + ' = o.'+ members[j].name +';\n';
+            s += '    constructor(o?:any){\n';
+            s += '        if(o){\n';
+            for(let m of members){
+
+                if(m.type=='foreignKey'){
+                    s += '            if(o.' + m.name + ' && o.'+ m.name +'length>0){\n'+
+                    '                this.'+ m.name + ' = {\'id\':o.'+ m.name +'[0], \'name\':o.'+ m.name +'[1]};\n'+
+                    '            }\n';
+                }else{
+                    s += '            this.' + m.name + ' = o.'+ m.name +';\n';
+                }
             }
             s += '      }\n';
             s += '  }\n';
@@ -499,8 +507,12 @@ export class HomeComponent implements OnInit {
             s += "        let headers = new HttpHeaders().set('Content-Type', 'application/json');\n";
             s += "        let data = {\n";
 
-            for(var j=0; j<members.length; j++){
-                s += "          '" + members[j].name + "': d." + members[j].name + ",\n";
+            for(var m of members){
+                if(m.type == 'foreignKey'){
+                    s += "          '" + m.name + "_id': d." + m.name + ".id,\n";
+                }else{
+                    s += "          '" + m.name + "': d." + m.name + ",\n";
+                }
             }
 
             s += "        }\n";
@@ -512,8 +524,8 @@ export class HomeComponent implements OnInit {
             s += "        });\n";
             s += "    }\n\n";
         }
-        s += "}\n\n";
 
+        s += "}\n\n";
         return s;
     }
 
@@ -555,14 +567,38 @@ export class HomeComponent implements OnInit {
     }
 
     // django
-    createView(app, classes){
+    createView(app, classes, apps){
         let s = "import json\n"+
-            "from django.http import JsonResponse\n"+
-            "from django.core import serializers\n"+
-            "from django.views.generic import View\n"+
-            "from django.views.decorators.csrf import csrf_exempt\n"+
-            "from django.utils.decorators import method_decorator\n";
-        
+                "from django.http import JsonResponse\n"+
+                "from django.core import serializers\n"+
+                "from django.views.generic import View\n"+
+                "from django.views.decorators.csrf import csrf_exempt\n"+
+                "from django.utils.decorators import method_decorator\n";
+            
+        let deps = this.getDependencies(classes, apps);
+
+        if(deps.length>0){
+            for(let dep of deps){
+                if(dep.classNames.indexOf('User')!=-1){
+                    let a = [];
+                    for(let c of dep.classNames){
+                        if(c != 'User'){
+                            a.push(c);
+                        }
+                    }
+                    s += "from django.contrib.auth import get_user_model\n";
+                    if(a.length>0){
+                        s += "from " + dep.appName + ".models import " + a.join(', ') + "\n";
+                    }
+                    
+                }else{
+                    s += "from " + dep.appName + ".models import " + dep.classNames.join(', ') + "\n";
+                }
+                
+            }
+            s += "\n";
+        };
+
         let cNames = [];
         for(let c of classes){
             cNames.push(c.name);
@@ -578,17 +614,31 @@ export class HomeComponent implements OnInit {
             "           items = " + c.name + ".objects.all()\n"+
             "       except Exception as e:\n"+
             "           return JsonResponse({'data':[]})\n"+
-            "       d = serializers.serialize(\"json\", items)\n"+
+            "       d = serializers.serialize(\"json\", items, use_natural_foreign_keys=True)\n"+
             "       return JsonResponse({'data':d})\n\n"+
             "   def post(self, req, *args, **kwargs):\n"+
             "       params = json.loads(req.body)\n"+
             "       item = " + c.name + "()\n";
-            for(let m of c.members){
-                s += "       item." + m.name + " = params.get('" + m.name + "')\n";
+
+            for(var m of c.members){
+                if(m.type == 'foreignKey'){
+                    s += "       " + m.name + "_id = params.get('" + m.name + "_id')\n"+
+                        "       try:\n";
+                    if(m.foreignKeyClass=="User"){
+                        s += "           item." + m.name + " = get_user_model().objects.get(id=" + m.name + "_id)\n";
+                    }else{
+                        s += "           item." + m.name + " = " + m.foreignKeyClass + ".objects.get(id=" + m.name + "_id)\n";
+                    }
+
+                    s += "       except:\n"+
+                        "           item."+ m.name +" = None\n";
+                }else{
+                    s += "       item." + m.name + " = params.get('" + m.name + "')\n";
+                }
             }
 
             s += "       item.save()\n"+
-            "       d = serializers.serialize(\"json\")\n"+
+            "       d = serializers.serialize(\"json\", [item], use_natural_foreign_keys=True)\n"+
             "       return JsonResponse({'data':d})\n\n";
         }
 
