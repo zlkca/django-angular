@@ -98,7 +98,7 @@ module.exports = function(){
         getType:function(line){
             if(line.indexOf('CharField')!=-1||line.indexOf('DateTimeField')!=-1){
                 return 'string';
-            }else if(line.indexOf('ForeignKey')){
+            }else if(line.indexOf('ForeignKey')!=-1){
                 return 'foreignKey';
             }else if(line.indexOf('DecimalField')!=-1||line.indexOf('IntegerField')!=-1){
                 return 'number';
@@ -117,22 +117,26 @@ module.exports = function(){
         },
 
         getMembers:function(lines, i){
+            // get class member of the model class
             var line = lines[i];
             var a = [];
             var found = false;
             while(!(i > lines.length || found)){
-                var TYPES = ['CharField', 'DateTimeField','ImageField','ForeignKey', 'DecimalField', 'IntegerField'];
-                var re = new RegExp(TYPES.join("|"));
-                var r = re.test(line);
-                if(r){
-                    //console.log(r);
-                    var s = line.split('=');
-                    var name = s[0].trim();
+                if(line){
+                    var TYPES = ['CharField', 'DateTimeField','ImageField','ForeignKey', 'DecimalField', 'IntegerField'];
+                    var re = new RegExp(TYPES.join("|"));
+                    var r = line.match(re);
+                    if(r){
+                        var t = r[0];
+                        var re = new RegExp('=[\\s]+' + t, 'ig');
+                        var s = line.split(re);
+                        var name = s[0].trim();
 
-                    if(name.indexOf('#')==-1){
-                        var t = this.getType(line);
-                        var fClass = this.getForeignKeyClass(line);
-                        a.push({'name':name, 'type':t, 'foreignKeyClass':fClass});
+                        if(name.indexOf('#')==-1){
+                            var t1 = this.getType(line);
+                            var fClass = this.getForeignKeyClass(t1, line);
+                            a.push({'name':name, 'type':t, 'foreignKeyClass':fClass});
+                        }
                     }
                 }
                 i++;
@@ -603,9 +607,10 @@ module.exports = function(){
                         }
                         
                     }else{
-                        s += "from " + dep.appName + ".models import " + dep.classNames.join(', ') + "\n";
+                        if(dep.appName){
+                            s += "from " + dep.appName + ".models import " + dep.classNames.join(', ') + "\n";
+                        }
                     }
-                    
                 }
                 s += "\n";
             };
