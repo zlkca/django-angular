@@ -106,6 +106,20 @@ module.exports = function(){
                 return 'string';
             }
         },
+
+
+        toType:function(t){
+            if(t == 'CharField' || t=='DateTimeField'){
+                return 'string';
+            }else if(t == 'ForeignKey'){
+                return 'foreignKey';
+            }else if(t == 'DecimalField' || t=='IntegerField'){
+                return 'number';
+            }else{
+                return 'string';
+            }
+        },
+
         
         getForeignKeyClass:function(type, line){
             if(type == 'foreignKey'){
@@ -129,13 +143,17 @@ module.exports = function(){
                     if(r){
                         var t = r[0];
                         var re = new RegExp('=[\\s]+' + t, 'ig');
+                        if(line.indexOf('models.'+t)!=-1){
+                            re = new RegExp('=[\\s]+models.' + t, 'ig');
+                        }
+
                         var s = line.split(re);
                         var name = s[0].trim();
 
                         if(name.indexOf('#')==-1){
-                            var t1 = this.getType(line);
+                            var t1 = this.toType(t);
                             var fClass = this.getForeignKeyClass(t1, line);
-                            a.push({'name':name, 'type':t, 'foreignKeyClass':fClass});
+                            a.push({'name':name, 'type':t1, 'foreignKeyClass':fClass});
                         }
                     }
                 }
