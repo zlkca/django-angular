@@ -289,24 +289,27 @@ module.exports = function(){
             for(var i=0; i<classes.length; i++){
                 var className = classes[i].name;
                 var members = classes[i].members;
-                s += 'export class ' + className + '{\n';
-
+                s += 'export class ' + className + '{\n'+
+                '    public id:string;\n';
+                
                 for(var j=0; j<members.length; j++){
                     var t = members[j].type;
                     if(t=='foreignKey'){
                         //s += '  public ' + members[j].name + ':'+ members[j].foreignKeyClass +';\n';
-                        s += '  public ' + members[j].name + ':any;\n';
+                        s += '  public ' + members[j].name + ':any = {id:1};\n';
                     }else{
                         s += '  public ' + members[j].name + ':'+ t +';\n';
                     }
                 }
-                s += '    constructor(o?:any){\n';
-                s += '        if(o){\n';
+                s += '    constructor(o?:any){\n'+
+                '        if(o){\n'+
+                '           this.id = o.id;\n';
+
                 for(let m of members){
 
                     if(m.type=='foreignKey'){
-                        s += '            if(o.' + m.name + ' && o.'+ m.name +'length>0){\n'+
-                        '                this.'+ m.name + ' = {\'id\':o.'+ m.name +'[0], \'name\':o.'+ m.name +'[1]};\n'+
+                        s += '            if(o.' + m.name + '){\n'+
+                        '                this.'+ m.name + ' = o.'+ m.name +';\n'+
                         '            }\n';
                     }else{
                         s += '            this.' + m.name + ' = o.'+ m.name +';\n';
@@ -322,13 +325,18 @@ module.exports = function(){
 
         createListHtml:function(className){
             var lClassName = className.toLowerCase();
-            var s = '<div class="container ' + lClassName + '-list">\n' +
-                '    <div class="list-head">\n'+
-                '        <div *ngFor="let field of fields">{{field}}</div>\n'+
-                '    </div>\n'+
-                '    <div class="list-body">\n'+
-                '        <div class="row" *ngFor="let r of ' + lClassName + 'List" (click)="toDetail(r)">\n'+
-                '            <div *ngFor="let field of fields">{{r["field"]}}</div>\n'+
+            var s = '<div class="' + lClassName + '-list">\n' +
+                '    <div class="list">\n'+
+                '        <div class="list-head">\n'+
+                '            <div *ngFor="let field of fields">{{field}}</div>\n'+
+                '        </div>\n'+
+                '        <div class="list-body">\n'+
+                '            <div class="item" *ngFor="let r of ' + lClassName + 'List" (click)="toDetail(r)">\n'+
+                '                <div *ngFor="let field of fields">{{r["field"]}}</div>\n'+
+                '                <div class="btn" (click)="add()">{{\'ADD\'|translate}}</div>\n'+
+                '                <div class="btn" (click)="change(r)">{{\'CHANGE\'|translate}}</div>\n'+
+                '                <div class="btn" (click)="delete(r)">{{\'DELETE\'|translate}}</div>\n'+
+                '            </div>\n'+
                 '        </div>\n'+
                 '    </div>\n'+
                 '</div>';
@@ -356,11 +364,14 @@ module.exports = function(){
         },
 
         createListComponents:function(app, uClassName){
-            var s = "import { Component, OnInit } from '@angular/core';\n";
+            var s = "import { Component, OnInit } from '@angular/core';\n"+
+            "import { Router } from '@angular/router';\n"+
+            "import { TranslateService } from '@ngx-translate/core';\n\n";
             var uServiceName = app.charAt(0).toUpperCase() + app.slice(1) + "Service";
             var lClassName = uClassName.toLowerCase();
             var serviceVar = lClassName + "Serv";
             var getListFunc = "get" + uClassName + "List";
+            var rmFunc = "rm" + uClassName;
 
             s += "import { " + uServiceName + " } from '../" + app + ".service';\n";
             s += "import { " + uClassName + " } from '../" + app + "';\n\n";
@@ -374,7 +385,7 @@ module.exports = function(){
             "export class " + uClassName + "ListComponent implements OnInit {\n"+
             "    " + lClassName + "List:" + uClassName + "[];\n\n"+
             "    fields:string[] = [];\n"+
-            "    constructor(private " + serviceVar + ":" + uServiceName + "){}\n\n"+
+            "    constructor(private " + serviceVar + ":" + uServiceName + ", private translate:TranslateService, private router:Router){}\n\n"+
             "    ngOnInit() {\n"+
             "        let self = this;\n"+
             "        let " + lClassName + " = new "+ uClassName +"()\n"+
@@ -387,7 +398,18 @@ module.exports = function(){
             "                self." + lClassName + "List = [];\n"+
             "            });\n"+
             "    }\n\n"+
-            "    toDetail(r){}\n\n"+
+            "    change(r){this.router.navigate([\"admin\/" + lClassName + "\/\" + r.id]);}\n\n"+
+            "    add(){this.router.navigate([\"admin\/" + lClassName + "\" ]);}\n\n"+
+            "    delete(r){\n"+
+            "        let self = this;\n"+
+            "        this." + serviceVar + "." + rmFunc + "(r.id).subscribe(\n"+
+            "            (r:"+ uClassName + "[]) => {\n"+
+            "                self." + lClassName + "List = r;\n"+
+            "            },\n"+
+            "            (err:any) => {\n"+
+            "                self." + lClassName + "List = [];\n"+
+            "            });\n"+
+            "    }\n\n"+
             "}\n\n";
 
             return s;
@@ -414,22 +436,29 @@ module.exports = function(){
             "})\n"+
             "export class " + uClassName + "FormComponent implements OnInit {\n"+
             "    " + lClassName + ":" + uClassName + " = new " + uClassName + "();\n\n"+
+            "    id:string;\n"+
             "    constructor(private " + serviceVar + ":" + uServiceName + ", private route: ActivatedRoute){}\n\n"+
             "    ngOnInit() {\n"+
             "        let self = this;\n"+
             "        self.route.params.subscribe((params:any)=>{\n"+
-            "            this." + serviceVar + "." + getFunc + "(params.id).subscribe(\n"+
-            "                (r:"+ uClassName + ") => {\n"+
+            "           if(params.id){\n"+
+            "               self.id = params.id;\n"+
+            "               this." + serviceVar + "." + getFunc + "(params.id).subscribe(\n"+
+            "                   (r:"+ uClassName + ") => {\n"+
             "                    self." + lClassName + " = r;\n"+
-            "                },\n"+
-            "                (err:any) => {\n"+
+            "                   },\n"+
+            "                   (err:any) => {\n"+
             "                    self." + lClassName + " = new " + uClassName + "();\n"+
-            "                });\n"+
+            "                   });\n"+
+            "           }else{\n"+
+            "               self." + lClassName + " = new " + uClassName + "();\n"+
+            "           }\n"+
             "        });\n"+
             "    }\n\n"+
             "    save() {\n"+
-            "        let self = this;\n"+
-            "        self." + serviceVar + "." + saveFunc + "(self."+ lClassName +").subscribe(\n"+
+            "       let self = this;\n"+
+            "       self." + lClassName + ".id = self.id;\n"+
+            "       self." + serviceVar + "." + saveFunc + "(self."+ lClassName +").subscribe(\n"+
             "            (r:"+ uClassName + ") => {\n"+
             "                self." + lClassName + " = r;\n"+
             "            },\n"+
@@ -480,7 +509,7 @@ module.exports = function(){
             return s;
         },
 
-
+        //angular services
         createServices:function(app, cls){
             var s = "import { Injectable } from '@angular/core';\n" +
                 "import { HttpClient, HttpHeaders } from '@angular/common/http';\n" +
@@ -507,13 +536,13 @@ module.exports = function(){
                 var members = cls[i].members;
 
                 s += "    get" + className + "List(query?:string):Observable<" + className + "[]>{\n";
-                s += "        const url = this.API_URL + '" + lClassName + "' + query ? query:'';\n";
+                s += "        const url = this.API_URL + '" + lClassName + "s' + (query ? query:'');\n";
                 s += "        let headers = new HttpHeaders().set('Content-Type', 'application/json');\n";
                 s += "        return this.http.get(url, {'headers': headers}).map((res:any) => {\n";
                 s += "            let a:"+ className +"[] = [];\n";
                 s += "            if( res.data && res.data.length > 0){\n";
-                s += "                for(var i=0; i<res.data.length; i++){\n";
-                s += "                    a.push(new " + className + "(res.data[i]));\n";
+                s += "                for(let b of res.data){\n";
+                s += "                    a.push(new " + className + "(b));\n";
                 s += "                }\n";
                 s += "            }\n";
                 s += "            return a;\n";
@@ -524,7 +553,7 @@ module.exports = function(){
                 s += "    }\n\n";
 
                 s += "    get" + className + "(id:number):Observable<" + className + ">{\n";
-                s += "        const url = this.API_URL + '" + lClassName + "/id';\n";
+                s += "        const url = this.API_URL + '" + lClassName + "/' + id;\n";
                 s += "        let headers = new HttpHeaders().set('Content-Type', 'application/json');\n";
                 s += "        return this.http.get(url, {'headers': headers}).map((res:any) => {\n";
                 s += "            return new "+ className +"(res.data);\n";
@@ -534,12 +563,11 @@ module.exports = function(){
                 s += "        });\n";
                 s += "    }\n\n";
 
-
                 s += "    save" + className + "(d:" + className + "):Observable<" + className + ">{\n";
                 s += "        const url = this.API_URL + '" + lClassName + "';\n";
-                s += "        let headers = new HttpHeaders().set('Content-Type', 'application/json');\n";
                 s += "        let data = {\n";
-
+                s += "            'id': (d.id? d.id:''),\n";
+                
                 for(var m of members){
                     if(m.type == 'foreignKey'){
                         s += "          '" + m.name + "_id': d." + m.name + ".id,\n";
@@ -549,8 +577,24 @@ module.exports = function(){
                 }
 
                 s += "        }\n";
-                s += "        return this.http.post(url, data, {'headers': headers}).map((res:any) => {\n";
+                s += "        return this.http.post(url, data).map((res:any) => {\n";
                 s += "            return new "+ className +"(res.data);\n";
+                s += "        })\n";
+                s += "        .catch((err) => {\n";
+                s += "            return Observable.throw(err.message || err);\n";
+                s += "        });\n";
+                s += "    }\n\n";
+
+                s += "    rm" + className + "(id:number):Observable<" + className + "[]>{\n";
+                s += "        const url = this.API_URL + '" + lClassName + "/' + id;\n";
+                s += "        return this.http.get(url).map((res:any) => {\n";
+                s += "            let a:"+ className +"[] = [];\n";
+                s += "            if( res.data && res.data.length > 0){\n";
+                s += "                for(let b of res.data){\n";
+                s += "                    a.push(new " + className + "(b));\n";
+                s += "                }\n";
+                s += "            }\n";
+                s += "            return a;\n";
                 s += "        })\n";
                 s += "        .catch((err) => {\n";
                 s += "            return Observable.throw(err.message || err);\n";
@@ -601,82 +645,115 @@ module.exports = function(){
 
         // django
         createView:function(app, classes, apps){
-            let s = "import json\n"+
+        let s = "import json\n"+
+                "import os\n"+
+                "import logging\n\n"+
                 "from django.http import JsonResponse\n"+
-                "from django.core import serializers\n"+
                 "from django.views.generic import View\n"+
                 "from django.views.decorators.csrf import csrf_exempt\n"+
-                "from django.utils.decorators import method_decorator\n";
-            
-            let deps = this.getDependencies(classes, apps);
+                "from django.utils.decorators import method_decorator\n"+
+                "from django.conf import settings\n"+
+                "from utils import to_json, valid_token\n\n"
+        //req.META['HTTP_AUTHORIZATION']    
+        let deps = this.getDependencies(classes, apps);
 
-            if(deps.length>0){
-                for(let dep of deps){
-                    if(dep.classNames.indexOf('User')!=-1){
-                        let a = [];
-                        for(let c of dep.classNames){
-                            if(c != 'User'){
-                                a.push(c);
-                            }
-                        }
-                        s += "from django.contrib.auth import get_user_model\n";
-                        if(a.length>0){
-                            s += "from " + dep.appName + ".models import " + a.join(', ') + "\n";
-                        }
-                        
-                    }else{
-                        if(dep.appName){
-                            s += "from " + dep.appName + ".models import " + dep.classNames.join(', ') + "\n";
+        if(deps.length>0){
+            for(let dep of deps){
+                if(dep.classNames.indexOf('User')!=-1){
+                    let a = [];
+                    for(let c of dep.classNames){
+                        if(c != 'User'){
+                            a.push(c);
                         }
                     }
-                }
-                s += "\n";
-            };
-
-            let cNames = [];
-            for(let c of classes){
-                cNames.push(c.name);
-            }
-            s += "from " + app + ".models import " + cNames.join(', ') + "\n\n";
-
-            for(let c of classes){
-
-                s += "@method_decorator(csrf_exempt, name='dispatch')\n"+
-                "class " + c.name + "View(View):\n"+
-                "   def get(self, req, *args, **kwargs):\n"+
-                "       try:\n"+
-                "           items = " + c.name + ".objects.all()\n"+
-                "       except Exception as e:\n"+
-                "           return JsonResponse({'data':[]})\n"+
-                "       d = serializers.serialize(\"json\", items, use_natural_foreign_keys=True)\n"+
-                "       return JsonResponse({'data':d})\n\n"+
-                "   def post(self, req, *args, **kwargs):\n"+
-                "       params = json.loads(req.body)\n"+
-                "       item = " + c.name + "()\n";
-
-                for(var m of c.members){
-                    if(m.type == 'foreignKey'){
-                        s += "       " + m.name + "_id = params.get('" + m.name + "_id')\n"+
-                            "       try:\n";
-                        if(m.foreignKeyClass=="User"){
-                            s += "           item." + m.name + " = get_user_model().objects.get(id=" + m.name + "_id)\n";
-                        }else{
-                            s += "           item." + m.name + " = " + m.foreignKeyClass + ".objects.get(id=" + m.name + "_id)\n";
-                        }
-
-                        s += "       except:\n"+
-                            "           item."+ m.name +" = None\n";
-                    }else{
-                        s += "       item." + m.name + " = params.get('" + m.name + "')\n";
+                    s += "from django.contrib.auth import get_user_model\n";
+                    if(a.length>0){
+                        s += "from " + dep.appName + ".models import " + a.join(', ') + "\n";
+                    }
+                    
+                }else{
+                    if(dep.appName){
+                        s += "from " + dep.appName + ".models import " + dep.classNames.join(', ') + "\n";
                     }
                 }
+                
+            }
+            s += "\n";
+        };
 
-                s += "       item.save()\n"+
-                "       d = serializers.serialize(\"json\", [item], use_natural_foreign_keys=True)\n"+
-                "       return JsonResponse({'data':d})\n\n";
+        let cNames = [];
+        for(let c of classes){
+            cNames.push(c.name);
+        }
+        s += "from " + app + ".models import " + cNames.join(', ') + "\n\n";
+
+        for(let c of classes){
+            s += "@method_decorator(csrf_exempt, name='dispatch')\n"+
+            "class " + c.name + "ListView(View):\n"+
+            "   def get(self, req, *args, **kwargs):\n"+
+            "       try:\n"+
+            "           items = " + c.name + ".objects.all().order_by('-updated')\n"+
+            "       except Exception as e:\n"+
+            "           return JsonResponse({'data':[]})\n"+
+            "       return JsonResponse({'data':to_json(items)})\n\n"+
+
+
+            "@method_decorator(csrf_exempt, name='dispatch')\n"+
+            "class " + c.name + "View(View):\n"+
+            "   def get(self, req, *args, **kwargs):\n"+
+            "        _id = int(kwargs.get('id'))\n"+
+            "        if _id:\n"+
+            "            try:\n"+
+            "                item = " + c.name + ".objects.get(id=_id)\n"+
+            "                return JsonResponse({'data':to_json(item)})\n"+
+            "            except Exception as e:\n"+
+            "                return JsonResponse({'data':''})\n"+
+            "        else:\n"+
+            "            return JsonResponse({'data':''})\n\n"+
+
+            "   def post(self, req, *args, **kwargs):\n"+
+            "        params = json.loads(req.body)\n"+
+            "        _id = params.get('id')\n"+
+            "        if _id:\n"+
+            "            item = " + c.name + ".objects.get(id=_id)\n"+
+            "        else:\n"+
+            "            item = " + c.name + "()\n\n";
+
+            for(var m of c.members){
+                if(m.type == 'foreignKey'){
+                    s += "        " + m.name + "_id = params.get('" + m.name + "_id')\n"+
+                         "        try:\n";
+                    if(m.foreignKeyClass=="User"){
+                        s += "            item." + m.name + " = get_user_model().objects.get(id=" + m.name + "_id)\n";
+                    }else{
+                        s += "            item." + m.name + " = " + m.foreignKeyClass + ".objects.get(id=" + m.name + "_id)\n";
+                    }
+
+                    s += "        except:\n"+
+                        "            item."+ m.name +" = None\n";
+                }else{
+                    s += "        item." + m.name + " = params.get('" + m.name + "')\n";
+                }
             }
 
-            return s;
+            s += "        item.save()\n"+
+            "        return JsonResponse({'data':to_json(item)})\n\n"+
+            "    def delete(self, req, *args, **kwargs):\n"+
+            "        _id = int(kwargs.get('id'))\n"+
+            "        if _id:\n"+
+            "            try:\n"+
+            "                item = " + c.name + ".objects.get(id=_id)\n"+
+            "                item.delete()\n"+
+            "                items = " + c.name + ".objects.all().order_by('-updated')\n"+
+            "                return JsonResponse({'data':to_json(item)})\n"+
+            "            except Exception as e:\n"+
+            "                return JsonResponse({'data':''})\n"+
+            "        else:\n"+
+            "            return JsonResponse({'data':''})\n\n";
+
+        }
+
+        return s;
         },
 
         createUrls:function(app, classes){
@@ -685,13 +762,16 @@ module.exports = function(){
 
             let vs = [];
             for(let c of classes){
+                vs.push(c.name + 'ListView');
                 vs.push(c.name + 'View');
             }
             s += vs.join(', ') + "\n\n"+
             "urlpatterns = [\n";
 
             for(let c of classes){
-                s += "   url('" + c.name.toLowerCase() + "', " + c.name + "View.as_view()),\n"
+                s += "    url('" + c.name.toLowerCase() + "s', " + c.name + "ListView.as_view()),\n"+
+                "    url('" + c.name.toLowerCase() + "\/(?P<id>[0-9]+)', " + c.name + "View.as_view()),\n"+
+                "    url('" + c.name.toLowerCase() + "', " + c.name + "View.as_view()),\n";
             }
             s += "]\n";
 
